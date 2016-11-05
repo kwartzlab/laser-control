@@ -108,8 +108,8 @@ typedef enum ButtonEvent {
 typedef struct Button {
     int pin;
     uint8_t _debounce;
-    unsigned long _prev_millis;
-    unsigned long _down_time;
+    uint32_t _prev_millis;
+    uint32_t _down_time;
     
     ButtonState state;
     ButtonEvent event;
@@ -279,7 +279,6 @@ void loop()
             default:
                 for (;;); // should never happen
                 break;
-            
         }
         
         button_handle(&button_start);
