@@ -82,52 +82,52 @@
 /*
  * Type definitions
  */
-typedef enum {
+typedef enum SystemState {
     STATE_INIT = 0,
     STATE_OFF,
     STATE_ON,
     STATE_COOLDOWN
-} states_e;
+};
 
-typedef enum button_state_t {
+typedef enum ButtonState {
     BUTTON_STATE_UNKNOWN = 0,
     BUTTON_STATE_DOWN,
     BUTTON_STATE_UP,
 };
 
-typedef enum button_event_t {
+typedef enum ButtonEvent {
     BUTTON_EVENT_NONE = 0,
     BUTTON_EVENT_PRESSED,
     BUTTON_EVENT_RELEASED,
     BUTTON_EVENT_HELD
 };
 
-typedef struct button_t {
+typedef struct Button {
     int pin;
     uint8_t _debounce;
     unsigned long _prev_millis;
     unsigned long _down_time;
     
-    button_state_t state;
-    button_event_t event;
+    ButtonState state;
+    ButtonEvent event;
 };
 
 /*
  * Functions
  */
-button_event_t button_get_event(button_t *b);
-button_state_t button_get_state(button_t *b);
-void           button_handle(button_t *b);
-void           button_init(button_t *b, int pin);
-states_e       system_get_state();
-void           system_set_state(states_e state);
+ButtonEvent button_get_event(Button *b);
+ButtonState button_get_state(Button *b);
+void        button_handle(Button *b);
+void        button_init(Button *b, int pin);
+SystemState system_get_state();
+void        system_set_state(SystemState state);
 
 /*
  * Global variables
  */
-button_t button_start;
-button_t button_stop;
-states_e system_state;
+Button button_start;
+Button button_stop;
+SystemState system_state;
 
 /*
  * Program code
@@ -283,7 +283,7 @@ void loop()
     }    
 }
 
-void button_handle(button_t *b)
+void button_handle(Button *b)
 {
     unsigned long cur_millis = millis();
     unsigned long delta_millis = cur_millis - b->_prev_millis;
@@ -320,19 +320,19 @@ void button_handle(button_t *b)
     }
 }
 
-button_state_t button_get_state(button_t *b)
+ButtonState button_get_state(Button *b)
 {
     return b->state;
 }
 
-button_event_t button_get_event(button_t *b)
+ButtonEvent button_get_event(Button *b)
 {
-    button_event_t event = b->event;
+    ButtonEvent event = b->event;
     b->event = BUTTON_EVENT_NONE;
     return event;
 }
 
-void button_init(button_t *b, int pin)
+void button_init(Button *b, int pin)
 {
     pinMode(pin, INPUT);
     b->pin = pin;
@@ -343,7 +343,7 @@ void button_init(button_t *b, int pin)
     b->state = BUTTON_STATE_UNKNOWN;
 }
 
-void system_set_state(states_e state)
+void system_set_state(SystemState state)
 {
     system_state = state;
     switch (system_state) {
@@ -354,7 +354,7 @@ void system_set_state(states_e state)
     }
 }
 
-states_e system_get_state()
+SystemState system_get_state()
 {
     return system_state;
 }
