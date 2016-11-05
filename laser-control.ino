@@ -74,7 +74,7 @@
 #define BUTTON_DEBOUNCE_TIME    10
 
 // Cooldown time (milliseconds)
-#define STATE_COOLDOWN_TIME     (5 * 60 * 1000)
+#define STATE_COOLDOWN_TIME     (5 * 60 * 1000UL)
 
 // Startup / shutdown power sequence delay (milliseconds)
 #define SEQUENCE_DELAY_TIME     500
@@ -85,8 +85,11 @@
 typedef enum SystemState {
     STATE_INIT = 0,
     STATE_OFF,
+    STATE_OFF_TO_ON,
     STATE_ON,
-    STATE_COOLDOWN
+    STATE_ON_TO_COOLDOWN,
+    STATE_COOLDOWN,
+    STATE_COOLDOWN_TO_OFF
 };
 
 typedef enum ButtonState {
@@ -159,16 +162,17 @@ void setup()
     
     button_init(&button_start, BUTTON_START_PIN);
     button_init(&button_stop, BUTTON_STOP_PIN);
-    
+
+    INDICATOR_R_ON();
     system_set_state(STATE_OFF);
 }
 
 void loop()
 {
-    unsigned long millis_cur = 0;
-    unsigned long millis_prev = 0;
-    unsigned long millis_delta = 0;
-    unsigned long cooldown_time = 0;
+    uint32_t millis_cur = 0;
+    uint32_t millis_prev = 0;
+    uint32_t millis_delta = 0;
+    uint32_t cooldown_time = 0;
     
     for (;;) {
         switch (system_get_state()) {
@@ -177,75 +181,65 @@ void loop()
                 break;
           
             case STATE_OFF:
-                INDICATOR_R_ON();
-                INDICATOR_G_OFF();
-
                 if (button_get_event(&button_start) == BUTTON_EVENT_PRESSED) {
-                    // Turn on everything
-                    INDICATOR_G_ON();
-                    INDICATOR_R_OFF();
-                    
-                    RELAY_MAIN_ON();
-                    delay(SEQUENCE_DELAY_TIME);
-                    RELAY_LASER_ON();
-                    delay(SEQUENCE_DELAY_TIME);
-                    RELAY_CHILLER_ON();
-                    delay(SEQUENCE_DELAY_TIME);
-                    RELAY_VENTILATION_ON();
-                    delay(SEQUENCE_DELAY_TIME);
-                    RELAY_AIR_ON();
-                    
-                    system_set_state(STATE_ON);
+                    system_set_state(STATE_OFF_TO_ON);
                 }
-
                 break;
-          
-            case STATE_ON:
+
+            case STATE_OFF_TO_ON:
                 INDICATOR_R_OFF();
                 INDICATOR_G_ON();
 
+                // Turn on everything
+                RELAY_MAIN_ON();
+                delay(SEQUENCE_DELAY_TIME);
+                RELAY_LASER_ON();
+                delay(SEQUENCE_DELAY_TIME);
+                RELAY_CHILLER_ON();
+                delay(SEQUENCE_DELAY_TIME);
+                RELAY_VENTILATION_ON();
+                delay(SEQUENCE_DELAY_TIME);
+                RELAY_AIR_ON();
+                
+                system_set_state(STATE_ON);
+                break;
+                
+            case STATE_ON:
                 if (button_get_event(&button_stop) == BUTTON_EVENT_PRESSED) {
-                    INDICATOR_R_ON();
-                    INDICATOR_G_OFF();
-
-                    // Turn off laser & air
-                    RELAY_LASER_OFF();
-                    delay(SEQUENCE_DELAY_TIME);
-                    RELAY_AIR_OFF();
-                    
-                    cooldown_time = STATE_COOLDOWN_TIME;
-                    system_set_state(STATE_COOLDOWN);
+                    system_set_state(STATE_ON_TO_COOLDOWN);
                 }
                 break;
-    
-            case STATE_COOLDOWN:
-                INDICATOR_G_OFF();
                 
-                millis_cur = millis();
+            case STATE_ON_TO_COOLDOWN:
+                INDICATOR_G_OFF();
+                INDICATOR_R_ON();
 
+                // Turn off laser & air
+                RELAY_LASER_OFF();
+                delay(SEQUENCE_DELAY_TIME);
+                RELAY_AIR_OFF();
+                
+                cooldown_time = STATE_COOLDOWN_TIME;
+                Serial.println(cooldown_time);
+                millis_prev = millis();
+                system_set_state(STATE_COOLDOWN);
+                break;
+                
+            case STATE_COOLDOWN:
                 // Hold stop for 5s to stop cooldown
                 if (button_get_event(&button_stop) == BUTTON_EVENT_HELD) {
                     cooldown_time = 0;
                 }
                 
                 if (cooldown_time == 0) { // Cooldown finished
-                   INDICATOR_R_ON();
-                   
-                    // Turn off everything
-                    RELAY_LASER_OFF();
-                    delay(SEQUENCE_DELAY_TIME);
-                    RELAY_CHILLER_OFF();
-                    delay(SEQUENCE_DELAY_TIME);
-                    RELAY_VENTILATION_OFF();
-                    delay(SEQUENCE_DELAY_TIME);
-                    RELAY_AIR_OFF();
-                    delay(SEQUENCE_DELAY_TIME);
-                    RELAY_MAIN_OFF();
-                    
-                    system_set_state(STATE_OFF);
+                    system_set_state(STATE_COOLDOWN_TO_OFF);
                 } else { // Cooldown countdown
+                    if ((cooldown_time % 1000) == 0)
+                        Serial.println(cooldown_time);
+
                     // Calculate elapsed time
-                    millis_delta = (unsigned long)(millis_cur - millis_prev);
+                    millis_cur = millis();
+                    millis_delta = (uint32_t)(millis_cur - millis_prev);
                     millis_prev = millis_cur;
                     
                     // Count down, avoiding underflow
@@ -263,8 +257,27 @@ void loop()
                     }
                 }
                 break;
-    
+                
+            case STATE_COOLDOWN_TO_OFF:
+                INDICATOR_G_OFF();
+                INDICATOR_R_ON();
+               
+                // Turn off everything
+                RELAY_LASER_OFF();
+                delay(SEQUENCE_DELAY_TIME);
+                RELAY_CHILLER_OFF();
+                delay(SEQUENCE_DELAY_TIME);
+                RELAY_VENTILATION_OFF();
+                delay(SEQUENCE_DELAY_TIME);
+                RELAY_AIR_OFF();
+                delay(SEQUENCE_DELAY_TIME);
+                RELAY_MAIN_OFF();
+                
+                system_set_state(STATE_OFF);
+                break;
+            
             default:
+                for (;;); // should never happen
                 break;
             
         }
@@ -285,8 +298,8 @@ void loop()
 
 void button_handle(Button *b)
 {
-    unsigned long cur_millis = millis();
-    unsigned long delta_millis = cur_millis - b->_prev_millis;
+    uint32_t cur_millis = millis();
+    uint32_t delta_millis = cur_millis - b->_prev_millis;
     
     if (delta_millis > BUTTON_DEBOUNCE_TIME) {
         b->_debounce <<= 1;
@@ -347,10 +360,13 @@ void system_set_state(SystemState state)
 {
     system_state = state;
     switch (system_state) {
-        case STATE_INIT: Serial.println("STATE_INIT"); break;
-        case STATE_ON: Serial.println("STATE_ON"); break;
-        case STATE_OFF: Serial.println("STATE_OFF"); break;
-        case STATE_COOLDOWN: Serial.println("STATE_COOLDOWN"); break;
+        case STATE_INIT:            Serial.println("STATE_INIT"); break;
+        case STATE_OFF:             Serial.println("STATE_OFF"); break;
+        case STATE_OFF_TO_ON:       Serial.println("STATE_OFF_TO_ON"); break;
+        case STATE_ON:              Serial.println("STATE_ON"); break;
+        case STATE_ON_TO_COOLDOWN:  Serial.println("STATE_ON_TO_COOLDOWN"); break;
+        case STATE_COOLDOWN:        Serial.println("STATE_COOLDOWN"); break;
+        case STATE_COOLDOWN_TO_OFF: Serial.println("STATE_COOLDOWN_TO_OFF"); break;
     }
 }
 
