@@ -234,9 +234,6 @@ void loop()
                 if (cooldown_time == 0) { // Cooldown finished
                     system_set_state(STATE_COOLDOWN_TO_OFF);
                 } else { // Cooldown countdown
-                    if ((cooldown_time % 1000) == 0)
-                        Serial.println(cooldown_time);
-
                     // Calculate elapsed time
                     millis_cur = millis();
                     millis_delta = (uint32_t)(millis_cur - millis_prev);
