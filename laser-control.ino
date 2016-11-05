@@ -2,6 +2,8 @@
  *  kwartzlab laser control
  *  2016-11 James Bastow <james@jamesbastow.com>
  *  
+ *  Replacement power control system for G.Weike LG900N laser cutter/engraver
+ *  
  *  ARDBOX IS.20AN.base http://www.industrialshields.com/shop/plc-arduino-ardbox-20-ios-analog/
  *  (Arduino Leonardo)
  */
@@ -64,12 +66,6 @@
 #define RELAY_CHILLER_OFF()     digitalWrite(RELAY_CHILLER_PIN, LOW)
 #define RELAY_LASER_ON()        digitalWrite(RELAY_LASER_PIN, HIGH)
 #define RELAY_LASER_OFF()       digitalWrite(RELAY_LASER_PIN, LOW)
-
-// Cooldown time (minutes)
-#define COOLDOWN_TIME           5
-
-// Restart lockout time (minutes)
-#define RESTART_LOCKOUT_TIME    1
 
 // Tick period (milliseconds)
 #define TICK_RATE               10
@@ -169,8 +165,6 @@ void setup()
 
 void loop()
 {
-    uint32_t heartbeat = 0;
-    uint8_t y = 0;
     unsigned long millis_cur = 0;
     unsigned long millis_prev = 0;
     unsigned long millis_delta = 0;
@@ -179,7 +173,7 @@ void loop()
     for (;;) {
         switch (system_get_state()) {
             case STATE_INIT:
-                //Should not be here
+                for (;;); // should never happen
                 break;
           
             case STATE_OFF:
